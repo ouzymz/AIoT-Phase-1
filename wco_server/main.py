@@ -6,9 +6,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
-from routers import calibration, upload
+from routers import calibration, upload, validation
 from services.calibration import ensure_staging, is_calibrated, staged_count
 from services.storage import ensure_dirs
+from services.validation import ensure_validation_csv
 
 START_TIME = time.time()
 
@@ -28,6 +29,7 @@ def _local_ip() -> str:
 async def lifespan(_app: FastAPI):
     ensure_dirs()
     ensure_staging()
+    ensure_validation_csv()
     ip = _local_ip()
     print(f"\n  WCO Collection Server")
     print(f"  Local    : http://{ip}:8000")
@@ -35,6 +37,7 @@ async def lifespan(_app: FastAPI):
     print(f"  Stats    : http://{ip}:8000/stats")
     print(f"  Calibrate: http://{ip}:8000/calibrate/image  (ESP32 per-image)")
     print(f"  Compute  : http://{ip}:8000/calibrate/compute")
+    print(f"  Validate : http://{ip}:8000/validate")
     if is_calibrated():
         print("  [OK] Calibration loaded")
     else:
@@ -58,6 +61,7 @@ app.add_middleware(
 
 app.include_router(upload.router)
 app.include_router(calibration.router)
+app.include_router(validation.router)
 
 
 @app.get("/favicon.ico", include_in_schema=False)

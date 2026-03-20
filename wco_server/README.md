@@ -14,17 +14,21 @@ wco_server/
 ├── requirements.txt
 ├── routers/
 │   ├── upload.py                  # POST /upload, GET /stats
-│   └── calibration.py             # POST /calibrate, POST /calibrate/image,
-│                                  # GET /calibrate/compute, GET /calibration
+│   ├── calibration.py             # POST /calibrate, POST /calibrate/image,
+│   │                              # GET /calibrate/compute, GET /calibration
+│   └── validation.py              # POST /validate, GET /validate/report,
+│                                  # DELETE /validate/reset
 ├── services/
 │   ├── metrics.py                 # michelson_contrast, laplacian_variance, darkening_score
 │   ├── calibration.py             # threshold I/O, staging, apply_labels
-│   └── storage.py                 # file save, CSV log, path resolution
+│   ├── storage.py                 # file save, CSV log, path resolution
+│   └── validation.py              # validation CSV log, report aggregation
 └── data/
     ├── images/                    # saved JPEGs
     ├── calibration_staging/       # temporary per-image upload buffer
     ├── calibration_thresholds.json
-    └── log.csv
+    ├── log.csv
+    └── validation_log.csv
 ```
 
 ---
@@ -101,6 +105,44 @@ curl -X POST http://localhost:8000/calibrate \
 
 ---
 
+### Validation
+
+Validates labeling accuracy against known oil samples. Requires calibration first.
+
+#### ESP32 flow
+
+Triggered automatically by `GET http://<ESP32-IP>/validate?group=<group>&n=3`.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/validate?group=<g>` | Submit one JPEG with known group. Returns per-label match and scores. |
+| `GET`  | `/validate/report` | Aggregated accuracy: overall, per-label (t/p/c), per-group. |
+| `DELETE` | `/validate/reset` | Clear `validation_log.csv` and start fresh. |
+
+**Groups and default expectations:**
+
+| group | expected_t | expected_p | expected_c |
+|-------|-----------|-----------|-----------|
+| `clean` | 0 | 0 | 0 |
+| `turbid` | 1 | — | — |
+| `turbid_particle` | 1 | 1 | — |
+
+`—` means the label is not evaluated for that group.
+
+**`POST /validate` response**
+```json
+{
+  "group": "turbid",
+  "expected": {"t": 1, "p": null, "c": null},
+  "actual":   {"t": 1, "p": 0,   "c": 0},
+  "scores":   {"contrast": 0.21, "laplacian": 4.1, "darkening": 0.43, "quality": 0.61},
+  "match":    {"t": true, "p": null, "c": null},
+  "correct":  true
+}
+```
+
+---
+
 ### Meta
 
 | Method | Path | Description |
@@ -111,11 +153,13 @@ curl -X POST http://localhost:8000/calibrate \
 
 ## Image metrics
 
-| Metric | Function | Threshold direction |
-|--------|----------|-------------------|
-| Michelson contrast | bottom-third ROI of 96×96 grayscale | `<` threshold → turbid (t=1) |
-| Laplacian variance | full 96×96 grayscale | `>` threshold → particles (p=1) |
-| Darkening score | HSV V+S channels of 96×96 | `>` threshold → color change (c=1) |
+All metrics operate on images resized to **96×96**. ROIs are derived from the physical container geometry.
+
+| Metric | ROI | Threshold direction |
+|--------|-----|-------------------|
+| Michelson contrast | Reference line zone: rows 40–72, cols 33–62 | `<` threshold → turbid (t=1) |
+| Laplacian variance | Circular container mask (r=34), line rows excluded | `>` threshold → particles (p=1) |
+| Darkening score | Circular container mask (r=34), line rows excluded | `>` threshold → color change (c=1) |
 
 Thresholds are set at **mean ± 2σ** of the clean-oil calibration images.
 

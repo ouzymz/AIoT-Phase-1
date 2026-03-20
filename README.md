@@ -19,7 +19,7 @@ data-collect/
 │   ├── LEDController/       # RGB LED (LEDC PWM)
 │   └── UltrasonicSensor/    # HC-SR04 distance via pulseIn
 ├── src/
-│   └── main.cpp             # WebServer, /capture, /calibrate handlers
+│   └── main.cpp             # WebServer, /capture, /calibrate, /validate handlers
 ├── platformio.ini
 └── wco_server/              # FastAPI data collection server
     └── README.md            ← see below
@@ -82,12 +82,18 @@ Once connected to WiFi, the ESP32 acts as a web server on **port 80**:
 |--------|------|-------------|
 | `GET` | `/capture` | LED on → capture → LED off → POST to server `/upload` → return server JSON |
 | `GET` | `/calibrate?n=20` | Capture *n* clean-oil images (default 20, max 50), upload one by one to server `/calibrate/image`, then GET `/calibrate/compute` |
+| `GET` | `/validate?group=<g>&n=3` | Capture *n* images (default 3, max 9) and POST each to server `/validate?group=<g>`, then fetch and return `/validate/report` |
+
+`group` must be one of: `clean`, `turbid`, `turbid_particle`.
 
 Boot output example:
 ```
 [Boot] Ready.
   Capture:   GET http://192.168.1.42/capture
   Calibrate: GET http://192.168.1.42/calibrate?n=20
+  Validate:  GET http://192.168.1.42/validate?group=clean
+             GET http://192.168.1.42/validate?group=turbid
+             GET http://192.168.1.42/validate?group=turbid_particle
 ```
 
 ---
@@ -97,9 +103,12 @@ Boot output example:
 ```
 1. Start wco_server  →  uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 2. Flash ESP32       →  pio run --target upload
-3. Calibrate         →  GET http://<ESP32-IP>/calibrate?n=20   (use fresh clean oil)
-4. Collect data      →  GET http://<ESP32-IP>/capture           (repeat for each sample)
-5. Check stats       →  GET http://<server-IP>:8000/stats
+3. Calibrate         →  GET http://<ESP32-IP>/calibrate?n=20             (fresh clean oil)
+4. Collect data      →  GET http://<ESP32-IP>/capture                    (repeat per sample)
+5. Validate          →  GET http://<ESP32-IP>/validate?group=clean        (verify clean)
+                        GET http://<ESP32-IP>/validate?group=turbid       (verify turbid)
+6. Check stats       →  GET http://<server-IP>:8000/stats
+7. Check accuracy    →  GET http://<server-IP>:8000/validate/report
 ```
 
 ---

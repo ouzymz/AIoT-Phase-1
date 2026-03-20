@@ -152,6 +152,72 @@ void handleCalibrate() {
     }
 }
 
+void handleValidate() {
+    Serial.println("[Server] GET /validate received");
+
+    // Parse ?group= param — required
+    if (!server.hasArg("group")) {
+        server.send(400, "application/json",
+                    "{\"status\":\"error\",\"message\":\"missing required param: group\"}");
+        return;
+    }
+    String group = server.arg("group");
+
+    // Parse ?n= param (default 3, max 9)
+    int n = 3;
+    if (server.hasArg("n")) {
+        int parsed = server.arg("n").toInt();
+        if (parsed > 0) n = parsed;
+        if (n > 9)      n = 9;
+    }
+    Serial.printf("[Validate] group=%s  n=%d\n", group.c_str(), n);
+
+    String baseUrl = "http://" + String(SERVER_IP) + ":" + String(SERVER_PORT);
+
+    for (int i = 1; i <= n; i++) {
+        ledOn();
+        delay(800);
+        camera_fb_t* fb = capturePhoto();
+        ledOff();
+
+        if (!fb) {
+            Serial.printf("[Validate] %d/%d → capture failed, skipping\n", i, n);
+            delay(800);
+            continue;
+        }
+
+        char filename[16];
+        snprintf(filename, sizeof(filename), "val_%03d.jpg", i);
+
+        String url = baseUrl + "/validate?group=" + group;
+        int code = postJpeg(url, fb->buf, fb->len, filename);
+        releasePhoto(fb);
+
+        Serial.printf("[Validate] %d/%d → HTTP %d\n", i, n, code);
+        delay(800);
+    }
+
+    // Fetch validation report
+    String reportUrl = baseUrl + "/validate/report";
+    Serial.printf("[Validate] GET %s\n", reportUrl.c_str());
+
+    HTTPClient http;
+    http.begin(reportUrl);
+    int code = http.GET();
+
+    if (code > 0) {
+        String body = http.getString();
+        Serial.printf("[Validate] Report %d: %s\n", code, body.c_str());
+        http.end();
+        server.send(code, "application/json", body);
+    } else {
+        Serial.printf("[Validate] Report GET failed: %d\n", code);
+        http.end();
+        server.send(502, "application/json",
+                    "{\"status\":\"error\",\"message\":\"report fetch failed\"}");
+    }
+}
+
 // ─── Setup / Loop ────────────────────────────────────────────────────────────
 
 void setup() {
@@ -186,12 +252,16 @@ void setup() {
 
     server.on("/capture",   HTTP_GET, handleCapture);
     server.on("/calibrate", HTTP_GET, handleCalibrate);
+    server.on("/validate",  HTTP_GET, handleValidate);
     server.begin();
 
     String ip = WiFi.localIP().toString();
     Serial.println("[Boot] Ready.");
     Serial.println("  Capture:   GET http://" + ip + "/capture");
     Serial.println("  Calibrate: GET http://" + ip + "/calibrate?n=20");
+    Serial.println("  Validate:  GET http://" + ip + "/validate?group=clean");
+    Serial.println("             GET http://" + ip + "/validate?group=turbid");
+    Serial.println("             GET http://" + ip + "/validate?group=turbid_particle");
 }
 
 void loop() {
