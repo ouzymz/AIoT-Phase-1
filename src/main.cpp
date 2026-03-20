@@ -108,8 +108,11 @@ void handleCalibrate() {
 
     // Capture and upload each image individually
     for (int i = 1; i <= n; i++) {
+        
         ledOn();
+        delay(1000);
         camera_fb_t* fb = capturePhoto();
+        delay(1000);
         ledOff();
 
         if (!fb) {
@@ -125,7 +128,7 @@ void handleCalibrate() {
         releasePhoto(fb);
 
         Serial.printf("[Calib] %d/%d → HTTP %d\n", i, n, code);
-        delay(1500);
+        delay(1000);
     }
 
     // Trigger threshold computation on the server
