@@ -13,6 +13,7 @@ include/config.h
 wco_server/data/images/*
 !wco_server/data/images/.gitkeep
 wco_server/data/log.csv
+wco_server/data/validation_log.csv
 wco_server/data/calibration_thresholds.json
 wco_server/data/calibration_staging/
 

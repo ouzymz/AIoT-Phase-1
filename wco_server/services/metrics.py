@@ -8,7 +8,7 @@ import numpy as np
 # Container circle (Laplacian + HSV clean oil zone):
 #   centre (49, 52), safe inner radius 34 px
 #
-# Reference line zone (Michelson contrast / turbidity):
+# Reference line zone (turbidity / pattern frequency power):
 #   rows 40–72, cols 33–62  — 4 horizontal black lines live here
 #
 # Laplacian and HSV use the circular container mask with the
@@ -47,17 +47,45 @@ def _oil_mask() -> np.ndarray:
 
 def michelson_contrast(image_bytes: bytes) -> float:
     """
-    Turbidity metric — measures visibility of the reference line pattern.
-    High contrast  → lines clearly visible → oil is clear.
-    Low contrast   → lines obscured        → oil is turbid.
+    Turbidity metric — measures visibility of the reference line pattern
+    using normalised FFT-based frequency power analysis.
+
+    Methodology (Gimenez et al., 2020, IEEE TIM):
+      Turbidity acts as an optical low-pass filter: as suspended particles
+      scatter light, sharp pattern edges are blurred, attenuating high-
+      frequency components in the image. This function quantifies the power
+      at the known spatial frequency of the reference lines.
+
+    Normalisation step:
+      roi_norm = (roi - mean) / std
+      Removes mean brightness (colour/darkening effects) and amplitude
+      variation before FFT, so only true optical blur (turbidity) affects
+      the result. This eliminates the need for a separate reference cuvette
+      as used in the original Gimenez et al. setup.
+
+    High power → lines clearly visible → oil is clear.
+    Low power  → lines blurred/obscured → oil is turbid.
+
     ROI: reference line zone only (rows 40–72, cols 33–62).
     """
     img = _decode_resize(image_bytes)
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY).astype(float)
     roi = gray[_LINE_ROW_START:_LINE_ROW_END, _LINE_COL_START:_LINE_COL_END]
-    i_max = float(roi.max())
-    i_min = float(roi.min())
-    return (i_max - i_min) / (i_max + i_min + 1e-6)
+
+    # Normalise — removes mean brightness and amplitude (colour/darkening) effects
+    roi_norm = (roi - roi.mean()) / (roi.std() + 1e-6)
+
+    # FFT — decompose into frequency components
+    fft = np.fft.fft2(roi_norm)
+    fft_shift = np.fft.fftshift(fft)
+    magnitude = np.abs(fft_shift)
+
+    # Extract power at horizontal line frequency band
+    # (centre rows of the shifted FFT correspond to the dominant
+    #  spatial frequency of the horizontal reference lines)
+    center_r = magnitude.shape[0] // 2
+    band = magnitude[center_r - 2:center_r + 2, :]
+    return float(band.mean())
 
 
 def laplacian_variance(image_bytes: bytes) -> float:
