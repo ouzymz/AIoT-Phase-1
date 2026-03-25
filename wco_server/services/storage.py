@@ -40,10 +40,26 @@ def resolve_path(original: str) -> Path:
     return IMAGES_DIR / f"{stem}_{ts}{ext}"
 
 
-def append_log(filename: str, labels: Dict[str, int]) -> None:
+def append_log(filename: str, labels: Dict[str, int], scores: Optional[Dict[str, int]] = None) -> None:
     ts = datetime.now(timezone.utc).isoformat()
+    s = scores or {}
     with open(LOG_CSV, "a", newline="") as f:
-        csv.writer(f).writerow([ts, filename, labels["t"], labels["p"], labels["c"]])
+        csv.writer(f).writerow([
+            ts,
+            filename,
+            labels["t"],
+            labels["p"],
+            labels["c"],
+            s.get("contrast",  ""),
+            s.get("blobs",     ""),
+            s.get("darkening", ""),
+            s.get("quality",   ""),
+        ])
+
+def reset_log() -> None:
+    """Overwrite log.csv with just the header row."""
+    with open(LOG_CSV, "w", newline="") as f:
+        csv.writer(f).writerow(_CSV_HEADER)
 
 
 def read_stats() -> dict:

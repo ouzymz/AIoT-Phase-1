@@ -37,6 +37,7 @@ async def lifespan(_app: FastAPI):
     print(f"  Stats    : http://{ip}:8000/stats")
     print(f"  Calibrate: http://{ip}:8000/calibrate/image  (ESP32 per-image)")
     print(f"  Compute  : http://{ip}:8000/calibrate/compute")
+    print(f"  Calibrate: http://{ip}:8000/calibrate/manual  (Manual calibration)")
     print(f"  Validate : http://{ip}:8000/validate")
     if is_calibrated():
         print("  [OK] Calibration loaded")

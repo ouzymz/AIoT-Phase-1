@@ -11,6 +11,7 @@ from services.calibration import (
     stage_image,
     staged_count,
     staged_images,
+    staged_images_test,
 )
 
 router = APIRouter(tags=["calibration"])
@@ -63,6 +64,23 @@ def calibrate_compute():
     clear_staging()
     return thresholds
 
+
+# ___ Manual calibration endpoint (for testing without ESP32) ─────────────────────
+@router.get("/calibrate/manual")
+def calibrate_manual():
+    """
+    Compute thresholds from all staged images, persist them, clear staging.
+    For manual testing without ESP32: POST images to /calibrate/image first.
+    """
+    image_byte_list = staged_images_test()
+    if not image_byte_list:
+        raise HTTPException(
+            status_code=422,
+            detail="No staged images found. POST images to /calibrate/image first.",
+        )
+    thresholds = compute_thresholds(image_byte_list)
+    save_thresholds(thresholds)
+    return thresholds
 
 # ─── Status ──────────────────────────────────────────────────────────────────
 
