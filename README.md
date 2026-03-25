@@ -34,7 +34,7 @@ data-collect/
 | Component | Details |
 |-----------|---------|
 | Board | Freenove ESP32-S3-WROOM-1 CAM |
-| Camera | OV2640 — JPEG, SVGA (800×600) |
+| Camera | OV3660 — JPEG, SVGA (800×600) |
 | Distance sensor | HC-SR04 — TRIG: GPIO 3, ECHO: GPIO 46 |
 | LED | RGB via LEDC PWM — R: GPIO 21, G: GPIO 20, B: GPIO 19 |
 
